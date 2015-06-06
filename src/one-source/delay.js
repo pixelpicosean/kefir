@@ -5,11 +5,13 @@ const mixin = {
   _init({wait}) {
     this._wait = Math.max(0, wait);
     this._buff = [];
+    this._lastTimer = null;
     this._$shiftBuff = () => this._emitValue(this._buff.shift());
   },
 
   _free() {
     this._buff = null;
+    this._lastTimer = null;
     this._$shiftBuff = null;
   },
 
@@ -18,7 +20,7 @@ const mixin = {
       this._emitValue(x);
     } else {
       this._buff.push(x);
-      setTimeout(this._$shiftBuff, this._wait);
+      this._lastTimer = setTimeout(this._$shiftBuff, this._wait);
     }
   },
 
@@ -26,7 +28,16 @@ const mixin = {
     if (this._activating) {
       this._emitEnd();
     } else {
-      setTimeout(() => this._emitEnd(), this._wait);
+      if (this._lastTimer) {
+        let cb = this._lastTimer.callback;
+        this._lastTimer.callback = () => {
+          cb();
+          this._emitEnd();
+        }
+      }
+      else {
+        setTimeout(() => this._emitEnd(), this._wait);
+      }
     }
   }
 

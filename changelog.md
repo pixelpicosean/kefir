@@ -1,3 +1,42 @@
+## 3.0.0
+
+ - All previously deprecated methods removed. Full list can be found in [deprecated API docs of v2.x](https://github.com/rpominov/kefir/blob/v2/deprecated-api-docs.md).
+ - New deprecations: [errorsToValues & valuesToErrors](https://github.com/rpominov/kefir/issues/149), [endOnError](https://github.com/rpominov/kefir/issues/150), [awaiting](https://github.com/rpominov/kefir/issues/145).
+ - New method `.takeErrors` replacing deprecated `.endOnError` [#150](https://github.com/rpominov/kefir/issues/150)
+ - Methods `.skipValues`, `.skipErrors`, and `.skipEnd` are renamed to `.ignoreValues`, `.ignoreErrors`, and `.ignoreEnd` [#152](https://github.com/rpominov/kefir/issues/152)
+ - The `emitEmpty` option from `.bufferWhileBy` removed, it now always emits `[]` if necessary [#131](https://github.com/rpominov/kefir/issues/131)
+ - Property now sets its current value **before** dispatching [#127](https://github.com/rpominov/kefir/issues/127)
+ - Event objects now don't contain `.current` property [#100](https://github.com/rpominov/kefir/issues/100)
+ - The `.flatten` method now always returns a stream [#144](https://github.com/rpominov/kefir/issues/144)
+
+
+See also [Umbrella 3.0](https://github.com/rpominov/kefir/issues/138)
+
+
+## 2.8.2 (13/10/2015)
+
+ - A bug in `.scan` fixed [#148](https://github.com/rpominov/kefir/issues/148)
+
+## 2.8.1 (30/08/2015)
+
+ - A bug in `.delay` fixed [#134](https://github.com/rpominov/kefir/issues/134)
+
+## 2.8.0 (21/08/2015)
+
+ - The `emitEmpty` option added to `.bufferWhileBy` [#129](https://github.com/rpominov/kefir/pull/129)
+
+## 2.7.2 (16/07/2015)
+
+ - A bug related to calling `emitter.end()` in response to an end event or in `unsubscribe()` function is fixed [83b06a7](https://github.com/rpominov/kefir/commit/83b06a7debb553dd7fd21c407c49b45da3e1b0ea)
+
+## 2.7.1 (11/07/2015)
+
+ - A bug when listener could be called after unsubscribing or end is fixed [#119](https://github.com/rpominov/kefir/issues/119)
+
+## 2.7.0 (27/06/2015)
+
+ - The `flushOnChange` option added to `.bufferWhileBy` [#116](https://github.com/rpominov/kefir/issues/116)
+
 ## 2.6.0 (05/06/2015)
 
  - A bug in `.bufferBy` fixed [#108](https://github.com/rpominov/kefir/issues/108)

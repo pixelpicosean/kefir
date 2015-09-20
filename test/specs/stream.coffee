@@ -52,6 +52,26 @@ describe 'Stream', ->
       s = stream()
       expect(s).toEmit [1, 2, '<end>'], -> send(s, [1, 2, '<end>', 3])
 
+    it 'calling ._emitEnd twice should work fine', ->
+      err = undefined
+      try
+        s = stream()
+        s._emitEnd()
+        s._emitEnd()
+      catch e
+        err = e
+      expect(err && err.message).toBe(undefined)
+
+    it 'calling ._emitEnd in an end handler should work fine', ->
+      err = undefined
+      try
+        s = stream()
+        s.onEnd ->
+          s._emitEnd()
+        s._emitEnd()
+      catch e
+        err = e
+      expect(err && err.message).toBe(undefined)
 
   describe 'active state', ->
 
@@ -169,16 +189,31 @@ describe 'Stream', ->
       s.onEnd -> count = arguments.length
       expect(count).toBe(0)
 
-    it 'should correctly handle unsubscribe during call loop', ->
-      s = stream()
+    it 'should not call subscriber after unsubscribing (from another subscriber)', ->
       log = []
-      a = (x) ->
-        log.push('a' + x)
-        s.offValue(b)
-      b = (x) -> log.push('b' + x)
-      s.onValue(a)
-      s.onValue(b)
-      send(s, [1, 2])
-      expect(log).toEqual(['a1', 'b1', 'a2'])
+      a = ->
+        log.push 'a'
+      b = ->
+        s.offValue a
+        log.push 'unsub a'
+      s = stream()
+      s.onValue b
+      s.onValue a
+      send(s, [1])
+      expect(log).toEqual ['unsub a']
+
+    it 'should not call subscribers after end (fired from another subscriber)', ->
+      log = []
+      a = ->
+        log.push 'a'
+      b = ->
+        send(s, ['<end>'])
+        log.push 'end fired'
+      s = stream()
+      s.onValue b
+      s.onValue a
+      send(s, [1])
+      expect(log).toEqual ['end fired']
+
 
 

@@ -1,5 +1,5 @@
 {prop, send, activate, Kefir} = require('../test-helpers.coffee')
-
+sinon = require('sinon')
 
 
 describe 'Property', ->
@@ -51,6 +51,27 @@ describe 'Property', ->
     it 'should stop deliver new values after end', ->
       s = prop()
       expect(s).toEmit [1, 2, '<end>'], -> send(s, [1, 2, '<end>', 3])
+
+    it 'calling ._emitEnd twice should work fine', ->
+      err = undefined
+      try
+        s = prop()
+        s._emitEnd()
+        s._emitEnd()
+      catch e
+        err = e
+      expect(err && err.message).toBe(undefined)
+
+    it 'calling ._emitEnd in an end handler should work fine', ->
+      err = undefined
+      try
+        s = prop()
+        s.onEnd ->
+          s._emitEnd()
+        s._emitEnd()
+      catch e
+        err = e
+      expect(err && err.message).toBe(undefined)
 
 
   describe 'active state', ->
@@ -144,6 +165,25 @@ describe 'Property', ->
       expect(p).toEmit [{currentError: 1}]
       send(p, [2])
       expect(p).toEmit [{current: 2}]
+
+
+    it 'should update catched current value before dispatching it', ->
+      p = send(prop(), [0])
+      spy = sinon.spy()
+      p.onValue (x) ->
+        if x == 1
+          p.onValue spy
+      send(p, [1])
+      expect(spy.args).toEqual [[1]]
+
+    it 'should update catched current error before dispatching it', ->
+      p = send(prop(), [{error: 0}])
+      spy = sinon.spy()
+      p.onError (x) ->
+        if x == 1
+          p.onError spy
+      send(p, [{error: 1}])
+      expect(spy.args).toEqual [[1]]
 
 
 

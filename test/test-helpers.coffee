@@ -6,37 +6,39 @@ Kefir.DEPRECATION_WARNINGS = false;
 exports.Kefir = Kefir
 
 
-logItem = (event) ->
+logItem = (event, isCurrent) ->
   if event.type == 'value'
-    if event.current
+    if isCurrent
       {current: event.value}
     else
       event.value
   else if event.type == 'error'
-    if event.current
+    if isCurrent
       {currentError: event.value}
     else
       {error: event.value}
   else
-    if event.current
+    if isCurrent
       '<end:current>'
     else
       '<end>'
 
 exports.watch = (obs) ->
   log = []
-  fn = (event) ->
-    log.push(logItem event)
-  unwatch = ->
-    obs.offAny fn
+  fn = (event) -> log.push(logItem event, isCurrent)
+  unwatch = -> obs.offAny fn
+  isCurrent = true
   obs.onAny fn
+  isCurrent = false
   {log, unwatch}
 
 exports.watchWithTime = (obs) ->
   startTime = new Date()
   log = []
+  isCurrent = true
   obs.onAny (event) ->
-    log.push([(new Date() - startTime), (logItem event)])
+    log.push([(new Date() - startTime), (logItem event, isCurrent)])
+  isCurrent = false
   log
 
 
@@ -68,9 +70,45 @@ exports.prop = ->
 exports.stream = ->
   new Kefir.Stream()
 
-exports.withFakeTime = (cb) ->
+
+# This function changes timers' IDs so "simultaneous" timers are reversed
+# Also sets createdAt to 0 so closk.tick will sort by ID
+# FIXME:
+#   1) Not sure how well it works with interval timers (setInterval), probably bad
+#   2) We need to restore (unshake) them back somehow (after calling tick)
+#   Hopefully we'll get a native implementation, and wont have to fix those
+#   https://github.com/sinonjs/lolex/issues/24
+shakeTimers = (clock) ->
+  ids = Object.keys(clock.timers)
+  timers = ids.map (id) -> clock.timers[id]
+
+  # see https://github.com/sinonjs/lolex/blob/a93c8a9af05fb064ae5c2ad1bfc72874973167ee/src/lolex.js#L175-L209
+  timers.sort (a, b) ->
+    return -1 if (a.callAt < b.callAt)
+    return 1 if (a.callAt > b.callAt)
+    return -1 if (a.immediate && !b.immediate)
+    return 1 if (!a.immediate && b.immediate)
+
+    # Following two cheks are reversed
+    return 1 if (a.createdAt < b.createdAt)
+    return -1 if (a.createdAt > b.createdAt)
+    return 1 if (a.id < b.id)
+    return -1 if (a.id > b.id)
+
+  ids.sort (a, b) -> a - b
+  timers.forEach (timer, i) ->
+    id = ids[i]
+    timer.createdAt = 0
+    timer.id = id
+    clock.timers[id] = timer
+
+exports.withFakeTime = (cb, reverseSimultaneous = false) ->
   clock = sinon.useFakeTimers(10000)
-  cb(  (t) -> clock.tick(t)  )
+  tick = (t) ->
+    if reverseSimultaneous
+      shakeTimers(clock)
+    clock.tick(t)
+  cb(tick, clock)
   clock.restore()
 
 
@@ -84,6 +122,22 @@ exports.withDOM = (cb) ->
 
 
 
+# see:
+#   https://github.com/rpominov/kefir/issues/134
+#   https://github.com/rpominov/kefir/pull/135
+exports.shakyTimeTest = (testCb) ->
+
+  it '[shaky time test: normal run]', ->
+    expectToEmitOverShakyTime = (stream, expectedLog, cb, timeLimit) ->
+      expect(stream).toEmitInTime(expectedLog, cb, timeLimit)
+    testCb(expectToEmitOverShakyTime)
+
+  it '[shaky time test: reverse run]', ->
+    expectToEmitOverShakyTime = (stream, expectedLog, cb, timeLimit) ->
+      expect(stream).toEmitInTime(expectedLog, cb, timeLimit, true)
+    testCb(expectToEmitOverShakyTime)
+
+
 
 beforeEach ->
   @addMatchers {
@@ -93,15 +147,9 @@ beforeEach ->
     toBeStream: ->
       @message = -> "Expected #{@actual.toString()} to be instance of Stream"
       @actual instanceof Kefir.Stream
-    toBeEmitter: ->
-      @message = -> "Expected #{@actual.toString()} to be instance of Emitter"
-      @actual instanceof Kefir.Emitter
     toBePool: ->
       @message = -> "Expected #{@actual.toString()} to be instance of Pool"
       @actual instanceof Kefir.Pool
-    toBeBus: ->
-      @message = -> "Expected #{@actual.toString()} to be instance of Bus"
-      @actual instanceof Kefir.Bus
 
     toBeActive: -> @actual._active
 
@@ -134,12 +182,13 @@ beforeEach ->
         @message = -> "Expected errors to flow (i.e. to emit #{jasmine.pp(expectedLog)}, actually emitted #{jasmine.pp(log)})"
         @env.equals_(expectedLog, log)
 
-    toEmitInTime: (expectedLog, cb, timeLimit = 10000) ->
+    toEmitInTime: (expectedLog, cb, timeLimit = 10000, reverseSimultaneous = false) ->
       log = null
       exports.withFakeTime (tick) =>
         log = exports.watchWithTime(@actual)
         cb?(tick)
         tick(timeLimit)
+      , reverseSimultaneous
       @message = -> "Expected to emit #{jasmine.pp(expectedLog)}, actually emitted #{jasmine.pp(log)}"
       @env.equals_(expectedLog, log)
 

@@ -20,11 +20,17 @@ describe 'bufferWhileBy', ->
       b = prop()
       expect(a.bufferWhileBy(b)).toActivate(a, b)
 
-    it 'should end when primary ends', ->
-      expect(send(stream(), ['<end>']).bufferWhileBy(stream())).toEmit ['<end:current>']
+    it 'should flush empty buffer and then end when primary ends', ->
+      expect(send(stream(), ['<end>']).bufferWhileBy(stream())).toEmit [{current: []}, '<end:current>']
       a = stream()
       b = stream()
-      expect(a.bufferWhileBy(b)).toEmit ['<end>'], -> send(a, ['<end>'])
+      expect(a.bufferWhileBy(b)).toEmit [[], '<end>'], -> send(a, ['<end>'])
+
+    it 'should flush empty buffer when secondary emits false (w/ {flushOnChange: true})', ->
+      expect(stream().bufferWhileBy(send(prop(), [false]), {flushOnChange: true})).toEmit [{current: []}]
+      a = stream()
+      b = stream()
+      expect(a.bufferWhileBy(b, {flushOnChange: true})).toEmit [[]], -> send(b, [true, false])
 
     it 'should flush buffer on end', ->
       expect(send(prop(), [1, '<end>']).bufferWhileBy(stream())).toEmit [{current: [1]}, '<end:current>']
@@ -76,7 +82,7 @@ describe 'bufferWhileBy', ->
       expect(a.bufferWhileBy(b)).toEmit [[1,2,3,4], [5], [6,7,8]], ->
         send(a, [1, 2]) # buffering
         send(b, [true])
-        send(a, [3]) # stil buffering
+        send(a, [3]) # still buffering
         send(b, [false])
         send(a, [4]) # flushing 1,2,3,4
         send(a, [5]) # flushing 5
@@ -111,6 +117,14 @@ describe 'bufferWhileBy', ->
       b = prop()
       expect(a.bufferWhileBy(b)).errorsToFlow(b)
 
+    it 'should flush on change if {flushOnChange === true}', ->
+      a = stream()
+      b = stream()
+      expect(a.bufferWhileBy(b, {flushOnChange: true})).toEmit [[1,2,3]], ->
+        send(a, [1, 2]) # buffering
+        send(b, [true])
+        send(a, [3]) # still buffering
+        send(b, [false]) # flush
 
 
   describe 'stream + stream', ->
@@ -153,4 +167,3 @@ describe 'bufferWhileBy', ->
       a = send(prop(), [1])
       b = send(prop(), [true])
       expect(a.bufferWhileBy(b)).toEmit []
-

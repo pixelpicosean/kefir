@@ -4,9 +4,10 @@ const {NOTHING} = require('../constants');
 
 const mixin = {
 
-  _init({flushOnEnd = true} = {}) {
+  _init({flushOnEnd = true, flushOnChange = false} = {}) {
     this._buff = [];
     this._flushOnEnd = flushOnEnd;
+    this._flushOnChange = flushOnChange;
   },
 
   _free() {
@@ -14,7 +15,7 @@ const mixin = {
   },
 
   _flush() {
-    if (this._buff !== null && this._buff.length !== 0) {
+    if (this._buff !== null) {
       this._emitValue(this._buff);
       this._buff = [];
     }
@@ -34,10 +35,19 @@ const mixin = {
     }
   },
 
-  _handleSecondaryEnd(x) {
+  _handleSecondaryEnd() {
     if (!this._flushOnEnd && (this._lastSecondary === NOTHING || this._lastSecondary)) {
       this._emitEnd();
     }
+  },
+
+  _handleSecondaryValue(x) {
+    if (this._flushOnChange && !x) {
+      this._flush();
+    }
+
+    // from default _handleSecondaryValue
+    this._lastSecondary = x;
   }
 
 };
